@@ -4,8 +4,9 @@ Modes:
     daily     Default. Process the recent window (implemented in Milestone 3).
     backfill  Process an explicit date range given with --start and --end.
 
-`--check-db` only verifies that the database is reachable, which is useful right
-after `docker compose up -d` or when setting up the hosted database.
+Database setup flags (each runs alone and exits):
+    --check-db  Verify that the database is reachable.
+    --init-db   Create or update the warehouse schema from sql/schema/ (safe to re-run).
 """
 
 from __future__ import annotations
@@ -16,8 +17,7 @@ import sys
 from collections.abc import Sequence
 from datetime import date
 
-import psycopg
-
+from pipeline import db
 from pipeline.config import ConfigError, Settings, load_settings, mask_url
 from pipeline.logging_config import setup_logging
 
@@ -36,8 +36,13 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--check-db", action="store_true", help="Only test the database connection, then exit."
     )
+    parser.add_argument(
+        "--init-db", action="store_true", help="Apply the schema in sql/schema/, then exit."
+    )
     args = parser.parse_args(argv)
 
+    if args.check_db and args.init_db:
+        parser.error("use --check-db or --init-db, not both")
     if args.mode == "backfill":
         if args.start is None or args.end is None:
             parser.error("--mode backfill needs both --start and --end")
@@ -51,7 +56,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 def check_database(settings: Settings) -> None:
     """Open a connection and log the server version. Raises on failure."""
-    with psycopg.connect(settings.database_url, connect_timeout=10) as conn:
+    with db.connect(settings.database_url) as conn:
         version = conn.execute("SHOW server_version").fetchone()
     logger.info(
         "database reachable",
@@ -76,6 +81,10 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         if args.check_db:
             check_database(settings)
+            return 0
+        if args.init_db:
+            with db.connect(settings.database_url) as conn:
+                db.apply_schema(conn)
             return 0
 
         # Extract, validate, transform and load steps arrive in Milestone 3.

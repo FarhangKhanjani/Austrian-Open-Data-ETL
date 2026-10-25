@@ -27,6 +27,7 @@ def test_backfill_parses_dates() -> None:
         ["--mode", "backfill", "--start", "2026-02-01", "--end", "2026-01-01"],
         ["--start", "2026-01-01"],
         ["--mode", "backfill", "--start", "01.01.2026", "--end", "2026-01-31"],
+        ["--check-db", "--init-db"],
     ],
 )
 def test_invalid_arguments_exit_with_usage_error(argv: list[str]) -> None:

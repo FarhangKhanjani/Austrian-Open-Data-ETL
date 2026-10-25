@@ -3,7 +3,7 @@
 Daily ETL pipeline that loads Austrian open data into a layered PostgreSQL warehouse
 (raw, staging, mart) and feeds a Power BI dashboard.
 
-**Status:** work in progress (Milestone 1 of 8: repository and environment).
+**Status:** work in progress (Milestone 2 of 8: warehouse design). See [docs/warehouse_design.md](docs/warehouse_design.md) and [docs/data_dictionary.md](docs/data_dictionary.md).
 
 ## Data sources
 
@@ -21,7 +21,7 @@ Requires Python 3.11+, [uv](https://docs.astral.sh/uv/) and Docker Desktop.
 cp .env.example .env
 docker compose up -d
 uv sync
-uv run python -m pipeline.run --check-db
+uv run python -m pipeline.run --init-db
 ```
 
 ## Run tests and linting
