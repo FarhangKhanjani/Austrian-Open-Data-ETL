@@ -1,0 +1,5 @@
+# Store text files with LF so Linux CI and Docker see the same bytes as Windows dev.
+* text=auto eol=lf
+*.pbix binary
+*.png binary
+*.pdf binary
