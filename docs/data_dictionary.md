@@ -74,7 +74,7 @@ The nine Austrian federal states. Seeded from `sql/schema/040_reference_data.sql
 
 ### staging.weather_station
 
-GeoSphere stations, from the `klima-v2-1d` metadata endpoint.
+Active GeoSphere stations, from the `klima-v2-1d` metadata endpoint (refreshed every run).
 
 | Column | Type | Null | Description |
 |---|---|---|---|

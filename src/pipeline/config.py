@@ -10,10 +10,31 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from urllib.parse import urlsplit, urlunsplit
+from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
 
 VALID_LOG_LEVELS = ("DEBUG", "INFO", "WARNING", "ERROR")
+
+# Source endpoints and pipeline constants. These are facts about the sources, not
+# per-environment settings, so they live in code rather than in environment variables.
+LOCAL_TZ = ZoneInfo("Europe/Vienna")
+USER_AGENT = (
+    "austrian-open-data-etl/0.1 (+https://github.com/FarhangKhanjani/Austrian-Open-Data-ETL)"
+)
+
+GEOSPHERE_DAILY_URL = "https://dataset.api.hub.geosphere.at/v1/station/historical/klima-v2-1d"
+GEOSPHERE_METADATA_URL = f"{GEOSPHERE_DAILY_URL}/metadata"
+GEOSPHERE_PARAMETERS = ("tl_mittel", "tlmax", "tlmin", "rr", "so_h")
+# The daily run re-fetches this many days so that GeoSphere's revisions are picked up.
+WEATHER_WINDOW_DAYS = 7
+# A daily run fails loudly if the newest weather date is older than this.
+WEATHER_MAX_LAG_DAYS = 3
+
+ECONTROL_REGION_URL = "https://api.e-control.at/sprit/1.0/search/gas-stations/by-region"
+FUEL_TYPES = ("DIE", "SUP")
+
+POPULATION_URL = "https://data.statistik.gv.at/data/OGD_bevstandjbab2002_BevStand_{year}.csv"
 
 
 class ConfigError(ValueError):
@@ -27,12 +48,15 @@ class Settings:
     database_url: str
     log_level: str = "INFO"
     http_timeout_seconds: float = 30.0
+    triggered_by: str = "local"
+    git_sha: str | None = None
 
     def __repr__(self) -> str:
         # Never let the password reach logs or tracebacks.
         return (
             f"Settings(database_url={mask_url(self.database_url)!r}, "
-            f"log_level={self.log_level!r}, http_timeout_seconds={self.http_timeout_seconds})"
+            f"log_level={self.log_level!r}, http_timeout_seconds={self.http_timeout_seconds}, "
+            f"triggered_by={self.triggered_by!r}, git_sha={self.git_sha!r})"
         )
 
 
@@ -77,8 +101,14 @@ def load_settings(env: dict[str, str] | None = None) -> Settings:
     if http_timeout_seconds <= 0:
         raise ConfigError("HTTP_TIMEOUT_SECONDS must be greater than 0")
 
+    # Set automatically inside GitHub Actions; absent on a developer machine.
+    triggered_by = env.get("GITHUB_EVENT_NAME", "local").strip() or "local"
+    git_sha = env.get("GITHUB_SHA", "").strip() or None
+
     return Settings(
         database_url=database_url,
         log_level=log_level,
         http_timeout_seconds=http_timeout_seconds,
+        triggered_by=triggered_by,
+        git_sha=git_sha,
     )

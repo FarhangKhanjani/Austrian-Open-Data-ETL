@@ -1,0 +1,7 @@
+{"title": "trimmed copy of klima-v2-1d/metadata for tests",
+ "stations": [
+  {"type": "COMBINED", "id": 3202, "name": "Linz Stadt", "state": "Oberösterreich", "lat": 48.29639, "lon": 14.28528, "altitude": 262.0, "valid_from": "1991-01-01T00:00:00+00:00", "valid_to": "2100-12-31T00:00:00+00:00", "is_active": true},
+  {"type": "COMBINED", "id": 5925, "name": "Wien Innere Stadt", "state": "Wien", "lat": 48.19833, "lon": 16.36694, "altitude": 177.0, "valid_from": "1991-01-01T00:00:00+00:00", "valid_to": "2100-12-31T00:00:00+00:00", "is_active": true},
+  {"type": "COMBINED", "id": 1, "name": "Old station", "state": "Steiermark", "lat": 47.5, "lon": 15.2, "altitude": 783.2, "valid_from": "1950-01-01T00:00:00+00:00", "valid_to": "1990-12-31T00:00:00+00:00", "is_active": false},
+  {"type": "COMBINED", "id": 7777, "name": "Border station", "state": "Bayern", "lat": 47.42, "lon": 10.98, "altitude": 2964.0, "valid_from": "2000-01-01T00:00:00+00:00", "valid_to": "2100-12-31T00:00:00+00:00", "is_active": true}
+ ]}

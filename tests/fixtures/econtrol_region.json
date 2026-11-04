@@ -1,0 +1,5 @@
+[
+ {"id": 33597, "name": "AVIA XPress", "location": {"address": "Wollsberg 37", "postalCode": "4652", "city": "Steinerkirchen", "latitude": 48.0779136, "longitude": 13.999056}, "position": 1, "open": true, "prices": [{"fuelType": "DIE", "amount": 1.644, "label": "Diesel"}, {"fuelType": "SUP", "amount": 1.689, "label": "Super 95"}]},
+ {"id": 40001, "name": "No price station", "location": {"postalCode": "4020", "city": "Linz", "latitude": 48.3, "longitude": 14.29}, "position": 2, "open": true, "prices": []},
+ {"id": 40002, "name": "Typo station", "location": {"postalCode": "4600", "city": "Wels", "latitude": 48.16, "longitude": 14.03}, "position": 3, "open": true, "prices": [{"fuelType": "DIE", "amount": 16.49, "label": "Diesel"}, {"fuelType": "SUP", "amount": 17.09, "label": "Super 95"}]}
+]

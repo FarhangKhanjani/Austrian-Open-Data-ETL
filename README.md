@@ -3,7 +3,7 @@
 Daily ETL pipeline that loads Austrian open data into a layered PostgreSQL warehouse
 (raw, staging, mart) and feeds a Power BI dashboard.
 
-**Status:** work in progress (Milestone 2 of 8: warehouse design). See [docs/warehouse_design.md](docs/warehouse_design.md) and [docs/data_dictionary.md](docs/data_dictionary.md).
+**Status:** work in progress (Milestone 3 of 8: extract, validate, load). See [docs/warehouse_design.md](docs/warehouse_design.md), [docs/data_dictionary.md](docs/data_dictionary.md) and [docs/data_quality.md](docs/data_quality.md).
 
 ## Data sources
 
@@ -21,10 +21,25 @@ Requires Python 3.11+, [uv](https://docs.astral.sh/uv/) and Docker Desktop.
 cp .env.example .env
 docker compose up -d
 uv sync
-uv run python -m pipeline.run --init-db
+uv run python -m pipeline.run
 ```
 
+The last command creates the schema if needed and runs the daily job: weather for the
+last 7 days, today's fuel price snapshot, and population if a new year is published.
+
+Load weather history (fuel prices have no history endpoint, so they cannot be backfilled):
+
+```bash
+uv run python -m pipeline.run --mode backfill --start 2024-01-01 --end 2026-10-24
+```
+
+Exit code 0 means every source succeeded; 1 means at least one source failed (the run
+is recorded as `partial` or `failed` in `ops.pipeline_run`).
+
 ## Run tests and linting
+
+Database tests use a separate `<database>_test` database on the Docker Postgres and
+are skipped when it is not running. HTTP calls are always mocked.
 
 ```bash
 uv run pytest
