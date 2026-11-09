@@ -6,11 +6,14 @@ Modes:
     backfill  Weather for --start to --end, in monthly chunks. Fuel prices are skipped
               because E-Control has no history endpoint.
 
-Exit codes: 0 success, 1 failed or partial (at least one source failed), 2 bad config.
+After loading, the SQL data tests in sql/tests/ run against the warehouse.
 
-Database setup flags (each runs alone and exits):
-    --check-db  Verify that the database is reachable.
-    --init-db   Create or update the warehouse schema from sql/schema/ (safe to re-run).
+Exit codes: 0 success, 1 failed or partial (a source or a data test failed), 2 bad config.
+
+Database flags (each runs alone and exits):
+    --check-db   Verify that the database is reachable.
+    --init-db    Create or update tables and views from sql/schema/ and sql/views/.
+    --sql-tests  Run the SQL data tests in sql/tests/ against the current data.
 """
 
 from __future__ import annotations
@@ -20,6 +23,8 @@ import logging
 import sys
 from collections.abc import Sequence
 from datetime import date, datetime, timedelta
+
+import psycopg
 
 from pipeline import config, db, jobs, load
 from pipeline.config import ConfigError, Settings, load_settings, mask_url
@@ -39,16 +44,18 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--mode", choices=("daily", "backfill"), default="daily")
     parser.add_argument("--start", type=date.fromisoformat, help="Backfill start date, YYYY-MM-DD")
     parser.add_argument("--end", type=date.fromisoformat, help="Backfill end date, YYYY-MM-DD")
-    parser.add_argument(
+    only = parser.add_mutually_exclusive_group()
+    only.add_argument(
         "--check-db", action="store_true", help="Only test the database connection, then exit."
     )
-    parser.add_argument(
-        "--init-db", action="store_true", help="Apply the schema in sql/schema/, then exit."
+    only.add_argument(
+        "--init-db", action="store_true", help="Only apply sql/schema/ and sql/views/, then exit."
+    )
+    only.add_argument(
+        "--sql-tests", action="store_true", help="Only run the SQL data tests, then exit."
     )
     args = parser.parse_args(argv)
 
-    if args.check_db and args.init_db:
-        parser.error("use --check-db or --init-db, not both")
     if args.mode == "backfill":
         if args.start is None or args.end is None:
             parser.error("--mode backfill needs both --start and --end")
@@ -68,6 +75,16 @@ def check_database(settings: Settings) -> None:
         "database reachable",
         extra={"ctx": {"url": mask_url(settings.database_url), "server_version": version[0]}},
     )
+
+
+def failed_sql_tests(conn: psycopg.Connection) -> list[str]:
+    """Names of failing data tests. A test that cannot even run counts as failed."""
+    try:
+        return [r.name for r in db.run_sql_tests(conn) if not r.passed]
+    except psycopg.Error as exc:
+        conn.rollback()
+        logger.exception("sql tests could not run")
+        return [f"sql tests could not run: {exc}"]
 
 
 def overall_status(results: Sequence[SourceResult]) -> str:
@@ -140,10 +157,16 @@ def run_pipeline(
                 },
             )
         status = overall_status(results)
-        errors = "; ".join(
-            f"{r.source}: {r.error_message}" for r in results if r.status == "failed"
-        )
-        load.finish_run(conn, run_id, status, errors[:1000] or None)
+        errors = [f"{r.source}: {r.error_message}" for r in results if r.status == "failed"]
+
+        # Data tests check the end result in the mart, after all sources are loaded.
+        failed_tests = failed_sql_tests(conn)
+        if failed_tests:
+            errors.append(f"data tests failed: {', '.join(failed_tests)}")
+            if status == "success":
+                status = "partial"
+
+        load.finish_run(conn, run_id, status, "; ".join(errors)[:1000] or None)
         conn.commit()
 
     logger.info("run finished", extra={"ctx": {"run_id": run_id, "status": status}})
@@ -172,6 +195,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             with db.connect(settings.database_url) as conn:
                 db.apply_schema(conn)
             return 0
+        if args.sql_tests:
+            with db.connect(settings.database_url) as conn:
+                return 1 if failed_sql_tests(conn) else 0
 
         status = run_pipeline(settings, args)
         return 0 if status == "success" else 1

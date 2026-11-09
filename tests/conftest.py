@@ -2,7 +2,10 @@
 
 Database tests run against a separate database (`<your db>_test`) on the Postgres from
 docker-compose.yml, so they can never overwrite development data. It is created on
-first use. Set TEST_DATABASE_URL to point somewhere else (for example in CI).
+first use. Set TEST_DATABASE_URL to point somewhere else.
+
+Locally, database tests are skipped when Postgres is not running. In CI (where GitHub
+sets CI=true) they fail instead, so a green build always means they really ran.
 """
 
 import os
@@ -31,13 +34,20 @@ DATA_TABLES = (
 )
 
 
+def _unavailable(reason: str) -> None:
+    """Skip locally, fail in CI."""
+    if os.environ.get("CI") == "true":
+        pytest.fail(f"database required in CI: {reason}")
+    pytest.skip(reason)
+
+
 def fixture_text(name: str) -> str:
     return (FIXTURES / name).read_text(encoding="utf-8")
 
 
 @pytest.fixture(scope="session")
 def test_database_url() -> str:
-    """URL of the test database, created if needed. Skips when Postgres is unreachable."""
+    """URL of the test database, created if needed."""
     explicit = os.environ.get("TEST_DATABASE_URL")
     if explicit:
         return explicit
@@ -45,7 +55,7 @@ def test_database_url() -> str:
     try:
         base_url = load_settings().database_url
     except ConfigError as exc:
-        pytest.skip(f"PostgreSQL not configured: {exc}")
+        _unavailable(f"PostgreSQL not configured: {exc}")
 
     parts = urlsplit(base_url)
     test_db = parts.path.lstrip("/") + "_test"
@@ -57,7 +67,7 @@ def test_database_url() -> str:
             if not exists:
                 admin.execute(sql.SQL("CREATE DATABASE {}").format(sql.Identifier(test_db)))
     except psycopg.OperationalError as exc:
-        pytest.skip(f"PostgreSQL not available: {exc}")
+        _unavailable(f"PostgreSQL not available: {exc}")
 
     return urlunsplit(parts._replace(path=f"/{test_db}"))
 
