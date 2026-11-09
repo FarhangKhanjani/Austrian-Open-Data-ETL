@@ -180,4 +180,72 @@ Records that failed validation.
 
 ## mart
 
-Views for Power BI, defined in `sql/views/` (Milestone 4).
+Views for Power BI, defined in `sql/views/`. They are dropped and recreated on every
+schema apply, so their columns can change without a migration. Power BI reads only
+these views.
+
+### mart.dim_bundesland
+
+One row per Bundesland: `bundesland_code`, `name_de`, `name_en`, `iso_3166_2`,
+`population`, `population_reference_date` (latest year, picked with `ROW_NUMBER()`).
+
+### mart.weather_daily_bundesland
+
+Grain: Bundesland and day. Built from stations below 1,500 m only, so Alpine regions
+are not dominated by mountain stations.
+
+| Column | Description |
+|---|---|
+| temp_mean_c, temp_max_c, temp_min_c | Median across the region's stations (one faulty station cannot move the value) |
+| precip_mm, sunshine_h | Average across stations |
+| stations_reporting | Stations with a temperature that day |
+| temp_mean_7d_avg, precip_7d_sum | Rolling over the last 7 calendar days (`RANGE ... INTERVAL '6 days'`), correct across missing days |
+| temp_change_vs_prev_day | `LAG`, only when the previous row really is yesterday, else NULL |
+| temp_baseline_30d_avg | Mean of the 30 days before (the day itself excluded) |
+| temp_z_score | (temp_mean_c - baseline) / standard deviation of those 30 days |
+| is_temp_anomaly | More than 2 standard deviations from the baseline |
+
+### mart.weather_monthly_bundesland
+
+Grain: Bundesland and month. `temp_mean_c`, `precip_mm_total`, `sunshine_h_total`,
+`days_with_data`, `is_complete_month`, `temp_diff_vs_prev_year_c` (degrees, not
+percent), `precip_pct_change_vs_prev_year`, `sunshine_pct_change_vs_prev_year`,
+`warmest_rank`, `sunniest_rank` (`RANK()` within the month). The previous year comes
+from a self-join on "same month one year earlier", not `LAG(..., 12)`, so a missing
+month cannot shift the comparison.
+
+### mart.fuel_price_daily
+
+Grain: day, Bundesland and fuel type.
+
+| Column | Description |
+|---|---|
+| fuel_name | `Diesel` or `Super 95` |
+| cheapest_price_eur | Cheapest listed price |
+| median_listed_price_eur | Median of E-Control's short list (not a market average) |
+| stations_listed | Stations in the snapshot |
+| cheapest_7d_avg | 7-calendar-day rolling average of the cheapest price |
+| change_vs_prev_day_eur, pct_change_vs_prev_day | Against yesterday's snapshot only, else NULL |
+| price_rank | 1 = cheapest Bundesland that day (`RANK()`, ties share a rank) |
+| premium_vs_cheapest_region_eur | How much more than the cheapest Bundesland |
+
+### mart.regional_daily_snapshot
+
+Grain: Bundesland and day. The dashboard's main table: names, ISO code and population
+from `dim_bundesland`, the main weather columns, and diesel and Super 95 prices and
+ranks pivoted into columns. A `FULL OUTER JOIN` keeps days that only one source has
+(today's fuel prices arrive before today's weather); `has_weather` and `has_fuel` say
+which parts are present.
+
+### mart.data_freshness
+
+One row per source: `latest_data_date`, `last_loaded_at`, `days_behind` (Vienna
+date), `last_run_status`, `last_run_finished_at`. Feeds the freshness indicator.
+
+## SQL data tests
+
+`sql/tests/*.sql` each return the rows that break a rule; zero rows means pass. They
+run after every pipeline run (a failure makes the run `partial` and the exit code 1)
+and on demand with `python -m pipeline.run --sql-tests`. They cover key uniqueness in
+the mart, the snapshot not losing rows in the join, consistent fuel ranks, nine
+Bundesländer, no future weather dates, and one API response per fuel snapshot.

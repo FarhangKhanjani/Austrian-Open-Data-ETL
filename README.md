@@ -3,7 +3,7 @@
 Daily ETL pipeline that loads Austrian open data into a layered PostgreSQL warehouse
 (raw, staging, mart) and feeds a Power BI dashboard.
 
-**Status:** work in progress (Milestone 3 of 8: extract, validate, load). See [docs/warehouse_design.md](docs/warehouse_design.md), [docs/data_dictionary.md](docs/data_dictionary.md) and [docs/data_quality.md](docs/data_quality.md).
+**Status:** work in progress (Milestone 4 of 8: SQL views). See [docs/warehouse_design.md](docs/warehouse_design.md), [docs/data_dictionary.md](docs/data_dictionary.md) and [docs/data_quality.md](docs/data_quality.md).
 
 ## Data sources
 
@@ -43,6 +43,7 @@ are skipped when it is not running. HTTP calls are always mocked.
 
 ```bash
 uv run pytest
+uv run python -m pipeline.run --sql-tests
 uv run ruff check .
 uv run ruff format --check .
 ```
