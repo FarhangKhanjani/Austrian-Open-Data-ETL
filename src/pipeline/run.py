@@ -156,6 +156,9 @@ def run_pipeline(
                     }
                 },
             )
+        # Commit the per-source results first: they are facts about this run, and must
+        # survive even if a data test below fails or cannot run.
+        conn.commit()
         status = overall_status(results)
         errors = [f"{r.source}: {r.error_message}" for r in results if r.status == "failed"]
 

@@ -65,7 +65,10 @@ class SqlTestResult:
 
 
 def run_sql_tests(conn: psycopg.Connection, tests_dir: Path = TESTS_DIR) -> list[SqlTestResult]:
-    """Run each query in sql/tests/. A query returns the rows that break its rule."""
+    """Run each query in sql/tests/. A query returns the rows that break its rule.
+
+    Read-only. It never commits or rolls back, so it cannot discard the caller's work.
+    """
     results = []
     for path in sql_files(tests_dir):
         rows = conn.execute(path.read_text(encoding="utf-8")).fetchall()
@@ -76,7 +79,6 @@ def run_sql_tests(conn: psycopg.Connection, tests_dir: Path = TESTS_DIR) -> list
                 "sql test failed",
                 extra={"ctx": {"test": result.name, "failing_rows": len(rows), "first": rows[0]}},
             )
-    conn.rollback()  # the tests only read; end the implicit transaction cleanly
     passed = sum(result.passed for result in results)
     logger.info("sql tests done", extra={"ctx": {"passed": passed, "total": len(results)}})
     return results

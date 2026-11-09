@@ -195,14 +195,15 @@ def test_fuel_change_is_null_when_previous_snapshot_is_not_yesterday(
 
 
 def test_snapshot_keeps_days_that_only_one_source_has(conn: psycopg.Connection) -> None:
-    rows = dict(
-        conn.execute(
+    rows = {
+        day: (has_weather, has_fuel)
+        for day, has_weather, has_fuel in conn.execute(
             """
-            SELECT date, (has_weather, has_fuel) FROM mart.regional_daily_snapshot
+            SELECT date, has_weather, has_fuel FROM mart.regional_daily_snapshot
             WHERE bundesland_code = 4 AND date IN ('2026-10-08', '2026-10-10', '2026-10-11')
             """
-        ).fetchall()
-    )
+        )
+    }
     assert rows == {
         date(2026, 10, 8): (True, True),
         date(2026, 10, 10): (True, False),
