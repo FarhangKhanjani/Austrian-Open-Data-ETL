@@ -1,0 +1,8 @@
+# Only what the image needs goes into the build context. Above all, never .env.
+*
+!pyproject.toml
+!uv.lock
+!README.md
+!src/
+!sql/
+**/__pycache__

@@ -146,3 +146,44 @@ def test_stale_weather_fails_the_daily_run_loudly(clean_database: str) -> None:
             "SELECT error_message FROM ops.pipeline_run_source WHERE source = 'geosphere'"
         ).fetchone()[0]
     assert "newest data is from 2026-10-24" in error
+
+
+@responses.activate
+def test_empty_fuel_response_never_replaces_existing_snapshot(clean_database: str) -> None:
+    _mock_sources()
+    _run(clean_database)
+    assert _counts(clean_database)["staging.fuel_price"] == 18
+
+    responses.reset()
+    _mock_sources()
+    responses.replace(responses.GET, config.ECONTROL_REGION_URL, body="[]")
+
+    assert _run(clean_database) == "partial"
+
+    assert _counts(clean_database)["staging.fuel_price"] == 18
+    with psycopg.connect(clean_database) as conn:
+        error = conn.execute(
+            """
+            SELECT error_message FROM ops.pipeline_run_source
+            WHERE source = 'econtrol' AND run_id = (SELECT max(run_id) FROM ops.pipeline_run)
+            """
+        ).fetchone()[0]
+    assert "no valid prices in response" in error
+
+
+@responses.activate
+def test_population_falls_back_to_previous_year_when_not_published(
+    clean_database: str,
+) -> None:
+    _mock_sources()
+    current_year = config.POPULATION_URL.format(year=2026)
+    previous_year = config.POPULATION_URL.format(year=2025)
+    responses.replace(responses.GET, re.compile(re.escape(current_year)), status=404)
+    responses.get(previous_year, body=fixture_text("population.csv"))
+
+    assert _run(clean_database) == "success"
+
+    requested = [call.request.url for call in responses.calls]
+    assert current_year in requested
+    assert previous_year in requested
+    assert _counts(clean_database)["staging.population"] == 9

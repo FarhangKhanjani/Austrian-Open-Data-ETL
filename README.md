@@ -3,7 +3,7 @@
 Daily ETL pipeline that loads Austrian open data into a layered PostgreSQL warehouse
 (raw, staging, mart) and feeds a Power BI dashboard.
 
-**Status:** work in progress (Milestone 4 of 8: SQL views). See [docs/warehouse_design.md](docs/warehouse_design.md), [docs/data_dictionary.md](docs/data_dictionary.md) and [docs/data_quality.md](docs/data_quality.md).
+**Status:** work in progress (Milestone 5 of 8: tests, CI and container). See [docs/warehouse_design.md](docs/warehouse_design.md), [docs/data_dictionary.md](docs/data_dictionary.md) and [docs/data_quality.md](docs/data_quality.md).
 
 ## Data sources
 
@@ -36,10 +36,30 @@ uv run python -m pipeline.run --mode backfill --start 2024-01-01 --end 2026-10-2
 Exit code 0 means every source succeeded; 1 means at least one source failed (the run
 is recorded as `partial` or `failed` in `ops.pipeline_run`).
 
+## Run in a container
+
+The same image runs locally and in the scheduled job. It is configured only through
+environment variables and never contains `.env`.
+
+```bash
+docker build --tag austria-etl .
+docker run --rm --env-file .env --network host austria-etl
+```
+
+Arguments after the image name go to `pipeline.run`, for example `--sql-tests` or
+`--mode backfill --start 2024-01-01 --end 2024-12-31`. On Windows and macOS, Docker
+Desktop does not support `--network host` for reaching a database on your machine;
+use `host.docker.internal` instead of `localhost` in `DATABASE_URL`.
+
 ## Run tests and linting
 
 Database tests use a separate `<database>_test` database on the Docker Postgres and
-are skipped when it is not running. HTTP calls are always mocked.
+are skipped when it is not running locally (in CI they fail instead, so they always
+run there). HTTP calls are always mocked.
+
+CI (`.github/workflows/ci.yml`) runs on every push and pull request: ruff, the full
+test suite with coverage against a Postgres service container, then builds the Docker
+image and runs the schema and SQL data tests from inside it.
 
 ```bash
 uv run pytest

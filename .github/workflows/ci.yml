@@ -58,4 +58,54 @@ jobs:
         run: uv run python -m pipeline.run --init-db
 
       - name: Run tests
-        run: uv run pytest -ra
+        run: uv run pytest -ra --cov=pipeline --cov-report=term-missing --cov-report=markdown-append:$GITHUB_STEP_SUMMARY
+
+  # Builds the same image that the daily job will run, and proves it works against a
+  # real database: schema and views apply, and the SQL data tests run inside it.
+  docker-image:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: lint-and-test
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: etl
+          POSTGRES_PASSWORD: etl_ci_password
+          POSTGRES_DB: austria_etl
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U etl -d austria_etl"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://etl:etl_ci_password@localhost:5432/austria_etl
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Build image
+        run: docker build --tag austria-etl:ci .
+
+      - name: Image runs as a non-root user
+        run: test "$(docker run --rm --entrypoint id austria-etl:ci -u)" != "0"
+
+      - name: Image contains no secrets file
+        run: docker run --rm --entrypoint sh austria-etl:ci -c 'test ! -e /app/.env'
+
+      # --network host lets the container reach the service Postgres on localhost.
+      - name: Apply schema and views from the image
+        run: docker run --rm --network host -e DATABASE_URL austria-etl:ci --init-db
+
+      - name: Run SQL data tests from the image
+        run: docker run --rm --network host -e DATABASE_URL austria-etl:ci --sql-tests
+
+      - name: Bad configuration exits with code 2
+        run: |
+          set +e
+          docker run --rm -e DATABASE_URL=mysql://nope austria-etl:ci --check-db
+          test $? -eq 2
