@@ -3,7 +3,7 @@
 Daily ETL pipeline that loads Austrian open data into a layered PostgreSQL warehouse
 (raw, staging, mart) and feeds a Power BI dashboard.
 
-**Status:** work in progress (Milestone 5 of 8: tests, CI and container). See [docs/warehouse_design.md](docs/warehouse_design.md), [docs/data_dictionary.md](docs/data_dictionary.md) and [docs/data_quality.md](docs/data_quality.md).
+**Status:** work in progress (Milestone 6 of 8: daily scheduled job). See [docs/warehouse_design.md](docs/warehouse_design.md), [docs/data_dictionary.md](docs/data_dictionary.md) and [docs/data_quality.md](docs/data_quality.md).
 
 ## Data sources
 
@@ -35,6 +35,16 @@ uv run python -m pipeline.run --mode backfill --start 2024-01-01 --end 2026-10-2
 
 Exit code 0 means every source succeeded; 1 means at least one source failed (the run
 is recorded as `partial` or `failed` in `ops.pipeline_run`).
+
+## Daily job
+
+The workflow `.github/workflows/daily-etl.yml` runs every day at 11:30 UTC on GitHub
+Actions. GitHub's runners are temporary, so the production warehouse is a hosted
+Postgres (Neon free plan); the local Docker Postgres is only for development and tests.
+The job builds the same Docker image that CI checks and runs it with the connection
+string from the `DATABASE_URL` repository secret. Each run writes a summary (rows
+loaded and rejected per source, data tests, freshness) to its GitHub Actions page.
+See [docs/runbook.md](docs/runbook.md) for what to do when it fails.
 
 ## Run in a container
 

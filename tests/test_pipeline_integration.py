@@ -187,3 +187,19 @@ def test_population_falls_back_to_previous_year_when_not_published(
     assert current_year in requested
     assert previous_year in requested
     assert _counts(clean_database)["staging.population"] == 9
+
+
+@responses.activate
+def test_github_job_summary_is_written(
+    clean_database: str, tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "summary.md"
+    monkeypatch.setenv("GITHUB_STEP_SUMMARY", str(target))
+    _mock_sources()
+
+    _run(clean_database)
+
+    text = target.read_text(encoding="utf-8")
+    assert "Pipeline run 1: success" in text
+    assert "| econtrol | ✅ success | 54 | 18 | 36 |" in text
+    assert "✅ all passed" in text

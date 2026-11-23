@@ -26,7 +26,7 @@ from datetime import date, datetime, timedelta
 
 import psycopg
 
-from pipeline import config, db, jobs, load
+from pipeline import config, db, jobs, load, summary
 from pipeline.config import ConfigError, Settings, load_settings, mask_url
 from pipeline.extract import HttpClient
 from pipeline.load import SourceResult
@@ -171,6 +171,19 @@ def run_pipeline(
 
         load.finish_run(conn, run_id, status, "; ".join(errors)[:1000] or None)
         conn.commit()
+
+        if summary.write_github_summary(
+            summary.render(
+                run_id,
+                status,
+                args.mode,
+                (start, end),
+                results,
+                failed_tests,
+                summary.read_freshness(conn),
+            )
+        ):
+            logger.info("job summary written")
 
     logger.info("run finished", extra={"ctx": {"run_id": run_id, "status": status}})
     return status
